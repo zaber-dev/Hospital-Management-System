@@ -1,0 +1,133 @@
+<?php
+require_once __DIR__ . '/../database.php';
+require_any_role([ROLE_ADMIN]);
+$departments = departments_options();
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create') {
+  verify_csrf_or_die();
+  try {
+    doctors_create($_POST);
+  } catch (Throwable $e) {
+    flash_add('error', 'Could not add doctor (maybe duplicate email).');
+  }
+  flash_add('success', 'Doctor added.');
+  redirect('./manage-doctors.php');
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update') {
+  verify_csrf_or_die();
+  $id = (int)($_POST['id'] ?? 0);
+  if ($id > 0) {
+    doctors_update($id, $_POST);
+    flash_add('success', 'Doctor updated.');
+  }
+  redirect('./manage-doctors.php');
+}
+
+if (($_GET['delete'] ?? '') !== '') {
+  doctors_delete((int)$_GET['delete']);
+  flash_add('success', 'Doctor deleted.');
+  redirect('./manage-doctors.php');
+}
+$editId = isset($_GET['edit']) ? (int)$_GET['edit'] : 0;
+$editRow = $editId ? doctors_get($editId) : null;
+$p = get_pagination_params(10);
+$data = doctors_list($p['q'], $p['limit'], $p['offset']);
+$rows = $data['rows'];
+$pages = (int) ceil(max(1, (int)$data['total']) / $p['per']);
+?>
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Doctors</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-50">
+  <?php include __DIR__ . '/sidebar.php'; ?>
+  <main class="md:ml-64 max-w-6xl mx-auto p-6">
+    <div class="mb-6"><a class="text-blue-600 hover:underline" href="index.php">← Back</a></div>
+
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-semibold text-slate-800"><?= $editRow ? 'Edit Doctor' : 'Doctors' ?></h2>
+      <?php if (!$editRow): ?>
+        <a href="#doctor-form" class="inline-flex items-center rounded bg-blue-600 px-3 py-2 text-white hover:bg-blue-700">New Doctor</a>
+      <?php endif; ?>
+    </div>
+    <?php render_flash(); ?>
+    <form method="get" class="mb-4 flex gap-2">
+      <input class="border rounded px-3 py-2 w-full max-w-sm" name="q" placeholder="Search doctors by name, email..." value="<?= htmlspecialchars($p['q']) ?>" />
+      <button type="submit" class="inline-flex items-center rounded bg-blue-600 text-white px-3 py-2 hover:bg-blue-700">Search</button>
+    </form>
+    <form id="doctor-form" method="post" class="bg-white border rounded p-4 space-y-4">
+      <input type="hidden" name="action" value="<?= $editRow ? 'update' : 'create' ?>" />
+      <?php if ($editRow): ?><input type="hidden" name="id" value="<?= (int)$editRow['id'] ?>" /><?php endif; ?>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <label class="block text-sm">First Name<input class="w-full border rounded px-3 py-2" name="first_name" value="<?= htmlspecialchars($editRow['first_name'] ?? '') ?>" required /></label>
+        <label class="block text-sm">Last Name<input class="w-full border rounded px-3 py-2" name="last_name" value="<?= htmlspecialchars($editRow['last_name'] ?? '') ?>" required /></label>
+        <label class="block text-sm">Email<input class="w-full border rounded px-3 py-2" name="email" type="email" value="<?= htmlspecialchars($editRow['email'] ?? '') ?>" required /></label>
+        <label class="block text-sm">Phone<input class="w-full border rounded px-3 py-2" name="phone" value="<?= htmlspecialchars($editRow['phone'] ?? '') ?>" /></label>
+        <label class="block text-sm">Specialization<input class="w-full border rounded px-3 py-2" name="specialization" value="<?= htmlspecialchars($editRow['specialization'] ?? '') ?>" /></label>
+        <label class="block text-sm">Department
+          <select name="department_id" class="border rounded px-3 py-2 w-full">
+            <option value="">-- None --</option>
+            <?php foreach ($departments as $d): ?>
+              <option value="<?= (int)$d['id'] ?>" <?= $editRow && (int)($editRow['department_id'] ?? 0) === (int)$d['id'] ? 'selected' : '' ?>><?= htmlspecialchars($d['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </label>
+      </div>
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+      <div class="flex items-center gap-2">
+        <button class="rounded bg-blue-600 text-white px-3 py-2"><?= $editRow ? 'Update' : 'Add' ?></button>
+        <?php if ($editRow): ?><a class="text-slate-600 hover:underline" href="./manage-doctors.php">Cancel</a><?php endif; ?>
+      </div>
+    </form>
+
+    <h2 class="text-lg font-semibold text-slate-800 mt-8">Doctors</h2>
+    <div class="overflow-x-auto rounded border bg-white mt-4">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 text-slate-700">
+          <tr>
+            <th class="text-left px-4 py-2">ID</th>
+            <th class="text-left px-4 py-2">Name</th>
+            <th class="text-left px-4 py-2">Email</th>
+            <th class="text-left px-4 py-2">Dept</th>
+            <th class="text-right px-4 py-2">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y">
+          <?php foreach ($rows as $r): ?>
+            <tr>
+              <td class="px-4 py-2"><?= (int)$r['id'] ?></td>
+              <td class="px-4 py-2"><?= htmlspecialchars($r['first_name'] . ' ' . $r['last_name']) ?></td>
+              <td class="px-4 py-2"><?= htmlspecialchars($r['email']) ?></td>
+              <td class="px-4 py-2"><?= htmlspecialchars($r['dept_name'] ?? '') ?></td>
+              <td class="px-4 py-2 text-right space-x-2">
+                <a class="inline-flex items-center px-3 py-1.5 rounded border border-blue-600 text-blue-700 hover:bg-blue-50" href="?edit=<?= (int)$r['id'] ?>">Edit</a>
+                <a class="inline-flex items-center px-3 py-1.5 rounded border border-red-600 text-red-600 hover:bg-red-50" href="?delete=<?= (int)$r['id'] ?>" onclick="return confirm('Delete this doctor?')">Delete</a>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+          <?php if (!$rows): ?><tr>
+              <td class="px-4 py-3" colspan="5">No rows</td>
+            </tr><?php endif; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php if ($pages > 1): ?>
+      <nav aria-label="pagination" class="mt-4">
+        <ul class="flex gap-2">
+          <?php for ($i = 1; $i <= $pages; $i++): ?>
+            <li><a class="px-3 py-1 rounded border <?= $i === $p['page'] ? 'bg-blue-600 text-white border-blue-600' : 'hover:bg-slate-100' ?>" href="?page=<?= $i ?>&per=<?= $p['per'] ?>&q=<?= urlencode($p['q']) ?>"><?= $i ?></a></li>
+          <?php endfor; ?>
+        </ul>
+      </nav>
+    <?php endif; ?>
+  </main>
+</body>
+
+</html>
