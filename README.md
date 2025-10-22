@@ -51,7 +51,7 @@ To get a local copy up and running, follow these simple steps.
 
 1.  **Clone the repository:**
     ```sh
-    git clone [https://github.com/zaber-dev/hospital-management-system.git](https://github.com/zaber-dev/hospital-management-system.git)
+    git clone [https://github.com/zaber-dev/Hospital-Management-System.git](https://github.com/zaber-dev/hospital-management-system.git)
     ```
 2.  **Move the project to `htdocs`:**
     Place the cloned project folder inside your XAMPP `htdocs` directory.
